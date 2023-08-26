@@ -81,7 +81,8 @@ public class ServerInterfaceTest {
                     ProvisioningAttempt.createScheduledAttemptMetrics(sContext));
             assertWithMessage("Expected RkpdException.").fail();
         } catch (RkpdException e) {
-            // should throw this
+            assertThat(e.getErrorCode()).isEqualTo(RkpdException.ErrorCode.HTTP_SERVER_ERROR);
+            assertThat(e).hasMessageThat().contains("HTTP error status encountered");
         }
     }
 
@@ -183,6 +184,7 @@ public class ServerInterfaceTest {
                 FakeRkpServer.Response.SIGN_CERTS_USER_UNAUTHORIZED)) {
             Settings.setDeviceConfig(sContext, 2 /* extraKeys */,
                     TIME_TO_REFRESH_HOURS /* expiringBy */, server.getUrl());
+            Settings.setMaxRequestTime(sContext, 100);
             ProvisioningAttempt metrics = ProvisioningAttempt.createScheduledAttemptMetrics(
                     sContext);
             mServerInterface.requestSignedCertificates(new byte[0], new byte[0], metrics);
@@ -227,11 +229,18 @@ public class ServerInterfaceTest {
 
     @Test
     public void testDataBudgetEmptyFetchGeekNetworkConnected() throws Exception {
-        // Check the data budget in order to initialize a rolling window.
-        assertThat(Settings.hasErrDataBudget(sContext, null /* curTime */)).isTrue();
-        Settings.consumeErrDataBudget(sContext, Settings.FAILURE_DATA_USAGE_MAX);
-        ProvisioningAttempt metrics = ProvisioningAttempt.createScheduledAttemptMetrics(sContext);
-        try {
+        try (FakeRkpServer server = new FakeRkpServer(
+                FakeRkpServer.Response.FETCH_EEK_OK,
+                FakeRkpServer.Response.SIGN_CERTS_OK_VALID_CBOR)) {
+            Settings.setDeviceConfig(sContext, 2 /* extraKeys */,
+                    TIME_TO_REFRESH_HOURS /* expiringBy */, server.getUrl());
+
+            // Check the data budget in order to initialize a rolling window.
+            assertThat(Settings.hasErrDataBudget(sContext, null /* curTime */)).isTrue();
+            Settings.consumeErrDataBudget(sContext, Settings.FAILURE_DATA_USAGE_MAX);
+            ProvisioningAttempt metrics = ProvisioningAttempt.createScheduledAttemptMetrics(
+                    sContext);
+
             // We are okay in mocking connectivity failure since err data budget is the first thing
             // to be checked.
             mockConnectivityFailure(ConnectivityState.CONNECTED);
@@ -246,15 +255,21 @@ public class ServerInterfaceTest {
 
     @Test
     public void testDataBudgetEmptyFetchGeekNetworkDisconnected() throws Exception {
-        // Check the data budget in order to initialize a rolling window.
-        try {
-            // We are okay in mocking connectivity failure since err data budget is the first thing
-            // to be checked.
-            mockConnectivityFailure(ConnectivityState.DISCONNECTED);
+        try (FakeRkpServer server = new FakeRkpServer(
+                FakeRkpServer.Response.FETCH_EEK_OK,
+                FakeRkpServer.Response.SIGN_CERTS_OK_VALID_CBOR)) {
+            Settings.setDeviceConfig(sContext, 2 /* extraKeys */,
+                    TIME_TO_REFRESH_HOURS /* expiringBy */, server.getUrl());
+
+            // Check the data budget in order to initialize a rolling window.
             assertThat(Settings.hasErrDataBudget(sContext, null /* curTime */)).isTrue();
             Settings.consumeErrDataBudget(sContext, Settings.FAILURE_DATA_USAGE_MAX);
             ProvisioningAttempt metrics = ProvisioningAttempt.createScheduledAttemptMetrics(
                     sContext);
+
+            // We are okay in mocking connectivity failure since err data budget is the first thing
+            // to be checked.
+            mockConnectivityFailure(ConnectivityState.DISCONNECTED);
             mServerInterface.fetchGeek(metrics);
             assertWithMessage("Network transaction should not have proceeded.").fail();
         } catch (RkpdException e) {
