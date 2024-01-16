@@ -389,6 +389,30 @@ public class ServerInterfaceTest {
         assertThat(ServerInterface.readErrorFromConnection(connection)).isEqualTo(sb.toString());
     }
 
+    @Test
+    public void testServerConnectionTimeout() {
+        ServerInterface serverInterface = Mockito.spy(mServerInterface);
+        Mockito.when(serverInterface.getRegionalProperty()).thenReturn("cn");
+        assertThat(serverInterface.getConnectTimeoutMs()).isEqualTo(
+                ServerInterface.SYNC_CONNECT_TIMEOUT_RETRICTED_MS);
+
+        Mockito.when(serverInterface.getRegionalProperty()).thenReturn("cn,us");
+        assertThat(serverInterface.getConnectTimeoutMs()).isEqualTo(
+                ServerInterface.SYNC_CONNECT_TIMEOUT_RETRICTED_MS);
+
+        Mockito.when(serverInterface.getRegionalProperty()).thenReturn(null);
+        assertThat(serverInterface.getConnectTimeoutMs()).isEqualTo(
+                ServerInterface.SYNC_CONNECT_TIMEOUT_OPEN_MS);
+
+        Mockito.when(serverInterface.getRegionalProperty()).thenReturn("");
+        assertThat(serverInterface.getConnectTimeoutMs()).isEqualTo(
+                ServerInterface.SYNC_CONNECT_TIMEOUT_OPEN_MS);
+
+        Mockito.when(serverInterface.getRegionalProperty()).thenReturn("us");
+        assertThat(serverInterface.getConnectTimeoutMs()).isEqualTo(
+                ServerInterface.SYNC_CONNECT_TIMEOUT_OPEN_MS);
+    }
+
     private void mockConnectivityFailure(ConnectivityState state) {
         ConnectivityManager mockedConnectivityManager = Mockito.mock(ConnectivityManager.class);
 
