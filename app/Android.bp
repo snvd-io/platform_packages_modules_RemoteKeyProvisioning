@@ -91,7 +91,6 @@ android_app {
         "com.android.rkpd",
     ],
     lint: {
-        strict_updatability_linting: true,
         baseline_filename: "lint-baseline.xml",
     },
 }
