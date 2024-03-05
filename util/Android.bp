@@ -23,5 +23,4 @@ java_binary {
         "cbor-java",
     ],
     main_class: "com.android.rkpdapp.RkpRegistrationCheck",
-    platform_apis: true,
 }
