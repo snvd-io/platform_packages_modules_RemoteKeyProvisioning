@@ -254,26 +254,23 @@ public class ServerInterfaceTest {
     }
 
     @Test
-    public void testDataBudgetEmptyFetchGeekNetworkDisconnected() throws Exception {
+    public void testNetworkDisconnected() throws Exception {
         try (FakeRkpServer server = new FakeRkpServer(
                 FakeRkpServer.Response.FETCH_EEK_OK,
                 FakeRkpServer.Response.SIGN_CERTS_OK_VALID_CBOR)) {
             Settings.setDeviceConfig(sContext, 2 /* extraKeys */,
                     TIME_TO_REFRESH_HOURS /* expiringBy */, server.getUrl());
 
-            // Check the data budget in order to initialize a rolling window.
-            assertThat(Settings.hasErrDataBudget(sContext, null /* curTime */)).isTrue();
-            Settings.consumeErrDataBudget(sContext, Settings.FAILURE_DATA_USAGE_MAX);
             ProvisioningAttempt metrics = ProvisioningAttempt.createScheduledAttemptMetrics(
                     sContext);
 
-            // We are okay in mocking connectivity failure since err data budget is the first thing
-            // to be checked.
+            // We are okay in mocking connectivity failure since network check is the first thing
+            // to happen.
             mockConnectivityFailure(ConnectivityState.DISCONNECTED);
             mServerInterface.fetchGeek(metrics);
             assertWithMessage("Network transaction should not have proceeded.").fail();
         } catch (RkpdException e) {
-            assertThat(e).hasMessageThat().contains("Out of data budget due to repeated errors");
+            assertThat(e).hasMessageThat().contains("No network detected");
             assertThat(e.getErrorCode()).isEqualTo(RkpdException.ErrorCode.NO_NETWORK_CONNECTIVITY);
         }
     }
