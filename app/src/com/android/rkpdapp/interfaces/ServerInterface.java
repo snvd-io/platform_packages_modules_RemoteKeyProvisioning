@@ -195,6 +195,10 @@ public class ServerInterface {
      */
     public GeekResponse fetchGeek(ProvisioningAttempt metrics)
             throws RkpdException, InterruptedException {
+        if (!isNetworkConnected(mContext)) {
+            throw new RkpdException(RkpdException.ErrorCode.NO_NETWORK_CONNECTIVITY,
+                    "No network detected.");
+        }
         byte[] input = CborUtils.buildProvisioningInfo(mContext);
         byte[] cborBytes =
                 connectAndGetData(metrics, generateFetchGeekUrl(), input, Operation.FETCH_GEEK);
