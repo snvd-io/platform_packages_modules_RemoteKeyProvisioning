@@ -21,8 +21,11 @@ import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.TrafficStats;
 import android.net.Uri;
+import android.os.SystemProperties;
 import android.util.Base64;
 import android.util.Log;
+
+import androidx.annotation.VisibleForTesting;
 
 import com.android.rkpdapp.GeekResponse;
 import com.android.rkpdapp.RkpdException;
@@ -46,6 +49,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -54,9 +58,10 @@ import java.util.UUID;
  * Provides convenience methods for interfacing with the remote provisioning server.
  */
 public class ServerInterface {
+    public static final int SYNC_CONNECT_TIMEOUT_RETRICTED_MS = 400;
+    public static final int SYNC_CONNECT_TIMEOUT_OPEN_MS = 1000;
+    public static final int TIMEOUT_MS = 20000;
 
-    private static final int SYNC_CONNECT_TIMEOUT_MS = 1000;
-    private static final int TIMEOUT_MS = 20000;
     private static final int BACKOFF_TIME_MS = 100;
 
     private static final String TAG = "RkpdServerInterface";
@@ -114,8 +119,34 @@ public class ServerInterface {
         this.mIsAsync = isAsync;
     }
 
-    private int getConnectTimeoutMs() {
-        return mIsAsync ? TIMEOUT_MS : SYNC_CONNECT_TIMEOUT_MS;
+    /**
+     * Gets the system property value for country code for network.
+     */
+    @VisibleForTesting
+    public String getRegionalProperty() {
+        return SystemProperties.get("gsm.operator.iso-country");
+    }
+
+    /**
+     * Gets the server connection timeout in milliseconds.
+     */
+    @VisibleForTesting
+    public int getConnectTimeoutMs() {
+        if (mIsAsync) {
+            return TIMEOUT_MS;
+        }
+
+        String regionProperty = getRegionalProperty();
+        if (regionProperty == null || regionProperty.isEmpty()) {
+            Log.i(TAG, "Could not get regions from system property.");
+            return SYNC_CONNECT_TIMEOUT_OPEN_MS;
+        }
+        String[] regions = regionProperty.split(",");
+        if (Arrays.stream(regions).anyMatch(x -> x.equalsIgnoreCase("cn"))) {
+            Log.i(TAG, "Possible restricted network. Taking a lower connect timeout");
+            return SYNC_CONNECT_TIMEOUT_RETRICTED_MS;
+        }
+        return SYNC_CONNECT_TIMEOUT_OPEN_MS;
     }
 
     /**
@@ -339,13 +370,14 @@ public class ServerInterface {
         final int oldTrafficTag = TrafficStats.getAndSetThreadStatsTag(operation.getTrafficTag());
         int backoff_time = BACKOFF_TIME_MS;
         int attempt = 1;
-        RkpdException lastSeenRkpdException = null;
+        RkpdException lastSeenRkpdException;
         try (StopWatch retryTimer = new StopWatch(TAG)) {
             retryTimer.start();
             // Retry logic.
             // Provide longer retries (up to 10s) for RkpdExceptions
             // Provide shorter retries (once) for everything else.
             while (true) {
+                lastSeenRkpdException = null;
                 checkDataBudget(metrics);
                 try {
                     Log.v(TAG, "Requesting data from server. Attempt " + attempt);
@@ -366,7 +398,7 @@ public class ServerInterface {
                         metrics.setStatus(operation.getHttpErrorStatus());
                     }
                 }
-                // Only RkpdExceptions should get longer retries.
+                // Only RkpdExceptions should get retries.
                 if (retryTimer.getElapsedMillis() > Settings.getMaxRequestTime(mContext)
                         || lastSeenRkpdException == null) {
                     break;
@@ -388,12 +420,14 @@ public class ServerInterface {
     private byte[] requestData(ProvisioningAttempt metrics, URL url, byte[] input)
             throws IOException, RkpdException {
         int bytesTransacted = 0;
+        HttpURLConnection con = null;
         try (StopWatch serverWaitTimer = metrics.startServerWait()) {
-            HttpURLConnection con = (HttpURLConnection) url.openConnection();
+            con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("POST");
             con.setConnectTimeout(getConnectTimeoutMs());
             con.setReadTimeout(TIMEOUT_MS);
             con.setDoOutput(true);
+            con.setFixedLengthStreamingMode(input.length);
 
             try (OutputStream os = con.getOutputStream()) {
                 os.write(input, 0, input.length);
@@ -425,6 +459,10 @@ public class ServerInterface {
         } catch (Exception e) {
             Settings.consumeErrDataBudget(mContext, bytesTransacted);
             throw e;
+        } finally {
+            if (con != null) {
+                con.disconnect();
+            }
         }
     }
 }
