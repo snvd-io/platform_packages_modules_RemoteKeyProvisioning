@@ -29,5 +29,13 @@
     {
       "name": "RkpdAppGoogleIntegrationTests[com.google.android.rkpd.apex]"
     }
+  ],
+  "rkpd-mainline-presubmit": [
+    {
+      "name": "RkpdAppGoogleUnitTests"
+    },
+    {
+      "name": "RkpdAppGoogleIntegrationTests"
+    }
   ]
 }
