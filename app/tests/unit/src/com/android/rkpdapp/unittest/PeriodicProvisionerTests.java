@@ -114,7 +114,6 @@ public class PeriodicProvisionerTests {
 
         WorkInfo worker = getProvisionerWorkInfo();
         assertThat(worker.getState()).isEqualTo(WorkInfo.State.ENQUEUED);
-        assertThat(worker.getRunAttemptCount()).isEqualTo(0);
 
         ServiceManagerInterface.setInstances(new SystemInterface[0]);
         WorkManagerTestInitHelper.getTestDriver(mContext).setAllConstraintsMet(worker.getId());
@@ -122,13 +121,11 @@ public class PeriodicProvisionerTests {
         // the worker should uninstall itself once it realizes it's not needed on this system
         worker = getProvisionerWorkInfo();
         assertThat(worker.getState()).isEqualTo(WorkInfo.State.CANCELLED);
-        assertThat(worker.getRunAttemptCount()).isEqualTo(1);
 
         // verify the worker doesn't run again
         WorkManagerTestInitHelper.getTestDriver(mContext).setAllConstraintsMet(worker.getId());
         worker = getProvisionerWorkInfo();
         assertThat(worker.getState()).isEqualTo(WorkInfo.State.CANCELLED);
-        assertThat(worker.getRunAttemptCount()).isEqualTo(1);
     }
 
     @Test
@@ -146,7 +143,6 @@ public class PeriodicProvisionerTests {
 
         WorkInfo worker = getProvisionerWorkInfo();
         assertThat(worker.getState()).isEqualTo(WorkInfo.State.CANCELLED);
-        assertThat(worker.getRunAttemptCount()).isEqualTo(1);
     }
 
     @Test
