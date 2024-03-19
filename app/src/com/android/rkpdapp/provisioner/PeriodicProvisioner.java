@@ -131,6 +131,8 @@ public class PeriodicProvisioner extends Worker {
 
             Log.i(TAG, "Total services found implementing IRPC: " + irpcs.length);
             Provisioner provisioner = new Provisioner(mContext, mKeyDao, IS_ASYNC);
+            provisioner.clearBadAttestationKeys(response);
+
             final AtomicBoolean result = new AtomicBoolean(true);
             Arrays.stream(irpcs).parallel().forEach(irpc -> {
                 Log.i(TAG, "Starting provisioning for " + irpc);

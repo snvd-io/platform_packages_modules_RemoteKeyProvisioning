@@ -23,6 +23,7 @@ import android.util.Log;
 
 import com.android.rkpdapp.GeekResponse;
 import com.android.rkpdapp.RkpdException;
+import com.android.rkpdapp.database.InstantConverter;
 import com.android.rkpdapp.database.RkpKey;
 
 import java.io.ByteArrayInputStream;
@@ -52,6 +53,8 @@ public class CborUtils {
     public static final String EXTRA_KEYS = "num_extra_attestation_keys";
     public static final String TIME_TO_REFRESH = "time_to_refresh_hours";
     public static final String PROVISIONING_URL = "provisioning_url";
+    public static final String LAST_BAD_CERT_TIME_START_MILLIS = "bad_cert_start";
+    public static final String LAST_BAD_CERT_TIME_END_MILLIS = "bad_cert_end";
 
     private static final int RESPONSE_CERT_ARRAY_INDEX = 0;
     private static final int RESPONSE_ARRAY_SIZE = 1;
@@ -155,6 +158,10 @@ public class CborUtils {
                 deviceConfiguration.get(new UnicodeString(TIME_TO_REFRESH));
         DataItem newUrl =
                 deviceConfiguration.get(new UnicodeString(PROVISIONING_URL));
+        DataItem lastBadCertTimeStart =
+                deviceConfiguration.get(new UnicodeString(LAST_BAD_CERT_TIME_START_MILLIS));
+        DataItem lastBadCertTimeEnd =
+                deviceConfiguration.get(new UnicodeString(LAST_BAD_CERT_TIME_END_MILLIS));
         if (extraKeys != null) {
             if (!checkType(extraKeys, MajorType.UNSIGNED_INTEGER, "ExtraKeys")) {
                 return false;
@@ -173,6 +180,20 @@ public class CborUtils {
                 return false;
             }
             resp.provisioningUrl = ((UnicodeString) newUrl).getString();
+        }
+        if (lastBadCertTimeStart != null) {
+            if (!checkType(lastBadCertTimeStart, MajorType.UNSIGNED_INTEGER, "BadCertTimeStart")) {
+                return false;
+            }
+            resp.lastBadCertTimeStart = InstantConverter.fromTimestamp(
+                    ((UnsignedInteger) lastBadCertTimeStart).getValue().longValue());
+        }
+        if (lastBadCertTimeEnd != null) {
+            if (!checkType(lastBadCertTimeEnd, MajorType.UNSIGNED_INTEGER, "BadCertTimeEnd")) {
+                return false;
+            }
+            resp.lastBadCertTimeEnd = InstantConverter.fromTimestamp(
+                    ((UnsignedInteger) lastBadCertTimeEnd).getValue().longValue());
         }
         return true;
     }

@@ -32,8 +32,6 @@ import com.android.rkpdapp.database.InstantConverter;
 import com.android.rkpdapp.database.ProvisionedKey;
 import com.android.rkpdapp.database.ProvisionedKeyDao;
 import com.android.rkpdapp.database.RkpdDatabase;
-import com.android.rkpdapp.testutil.TestDatabase;
-import com.android.rkpdapp.testutil.TestProvisionedKeyDao;
 
 import org.junit.After;
 import org.junit.Before;
@@ -64,8 +62,6 @@ public class RkpdDatabaseTest {
 
     private ProvisionedKeyDao mKeyDao;
     private RkpdDatabase mDatabase;
-    private TestDatabase mTestDatabase;
-    private TestProvisionedKeyDao mTestDao;
 
     @Before
     public void setUp() {
@@ -73,8 +69,6 @@ public class RkpdDatabaseTest {
         mDatabase = Room.databaseBuilder(context, RkpdDatabase.class, DB_NAME).build();
         mKeyDao = mDatabase.provisionedKeyDao();
         mKeyDao.deleteAllKeys();
-        mTestDatabase = Room.databaseBuilder(context, TestDatabase.class, DB_NAME).build();
-        mTestDao = mTestDatabase.dao();
         mProvisionedKey1 = new ProvisionedKey(TEST_KEY_BLOB_1, TEST_HAL_1, TEST_KEY_BLOB_1,
                 TEST_KEY_BLOB_1, TEST_KEY_EXPIRY);
         mProvisionedKey2 = new ProvisionedKey(TEST_KEY_BLOB_2, TEST_HAL_2, TEST_KEY_BLOB_2,
@@ -84,13 +78,12 @@ public class RkpdDatabaseTest {
     @After
     public void tearDown() {
         mDatabase.close();
-        mTestDatabase.close();
     }
 
     @Test
     public void testWriteToTable() {
         mKeyDao.insertKeys(List.of(mProvisionedKey1));
-        List<ProvisionedKey> keysInDatabase = mTestDao.getAllKeys();
+        List<ProvisionedKey> keysInDatabase = mKeyDao.getAllKeys();
 
         assertThat(keysInDatabase).containsExactly(mProvisionedKey1);
     }
@@ -105,7 +98,7 @@ public class RkpdDatabaseTest {
             assertThat(ex).hasMessageThat().contains("UNIQUE constraint failed");
         }
 
-        List<ProvisionedKey> unassignedKeys = mTestDao.getAllKeys();
+        List<ProvisionedKey> unassignedKeys = mKeyDao.getAllKeys();
         assertThat(unassignedKeys).isEmpty();
     }
 
@@ -116,12 +109,12 @@ public class RkpdDatabaseTest {
 
         mKeyDao.insertKeys(List.of(mProvisionedKey1, mProvisionedKey2));
 
-        List<ProvisionedKey> keysInDatabase = mTestDao.getAllKeys();
+        List<ProvisionedKey> keysInDatabase = mKeyDao.getAllKeys();
         assertThat(keysInDatabase).hasSize(2);
 
         mKeyDao.deleteExpiringKeys(Instant.now());
 
-        keysInDatabase = mTestDao.getAllKeys();
+        keysInDatabase = mKeyDao.getAllKeys();
         assertThat(keysInDatabase).containsExactly(mProvisionedKey2);
     }
 
@@ -144,7 +137,7 @@ public class RkpdDatabaseTest {
     public void testUpdate() {
         mKeyDao.insertKeys(List.of(mProvisionedKey1));
 
-        List<ProvisionedKey> keysInDatabase = mTestDao.getAllKeys();
+        List<ProvisionedKey> keysInDatabase = mKeyDao.getAllKeys();
         ProvisionedKey key = keysInDatabase.get(0);
         assertThat(keysInDatabase).hasSize(1);
         assertThat(key.expirationTime).isEqualTo(
@@ -154,7 +147,7 @@ public class RkpdDatabaseTest {
                 .minus(1000, ChronoUnit.MINUTES);
         key.expirationTime = expiredInstant;
         mKeyDao.updateKey(key);
-        keysInDatabase = mTestDao.getAllKeys();
+        keysInDatabase = mKeyDao.getAllKeys();
         assertThat(keysInDatabase).containsExactly(key);
         assertThat(keysInDatabase.get(0).expirationTime).isEqualTo(expiredInstant);
     }
@@ -163,18 +156,32 @@ public class RkpdDatabaseTest {
     public void testUpdateWithNonExistentKey() {
         mKeyDao.updateKey(mProvisionedKey1);
 
-        assertThat(mTestDao.getAllKeys()).isEmpty();
+        assertThat(mKeyDao.getAllKeys()).isEmpty();
     }
 
     @Test
     public void testDeleteAllKeys() {
         mKeyDao.insertKeys(List.of(mProvisionedKey1, mProvisionedKey2));
 
-        List<ProvisionedKey> keysInDatabase = mTestDao.getAllKeys();
+        List<ProvisionedKey> keysInDatabase = mKeyDao.getAllKeys();
         assertThat(keysInDatabase).hasSize(2);
 
         mKeyDao.deleteAllKeys();
-        assertThat(mTestDao.getAllKeys()).isEmpty();
+        assertThat(mKeyDao.getAllKeys()).isEmpty();
+    }
+
+    @Test
+    public void testDeleteSingleKey() {
+        mKeyDao.insertKeys(List.of(mProvisionedKey1, mProvisionedKey2));
+        List<ProvisionedKey> keysInDatabase = mKeyDao.getAllKeys();
+        assertThat(keysInDatabase).hasSize(2);
+
+        mKeyDao.deleteKey(mProvisionedKey1.keyBlob);
+        keysInDatabase = mKeyDao.getAllKeys();
+        assertThat(keysInDatabase).hasSize(1);
+
+        ProvisionedKey key = keysInDatabase.get(0);
+        assertThat(key.keyBlob).isEqualTo(mProvisionedKey2.keyBlob);
     }
 
     @Test
@@ -234,14 +241,14 @@ public class RkpdDatabaseTest {
         mProvisionedKey1.clientUid = FAKE_CLIENT_UID;
         mKeyDao.insertKeys(List.of(mProvisionedKey1));
 
-        ProvisionedKey databaseKey = mTestDao.getAllKeys().get(0);
+        ProvisionedKey databaseKey = mKeyDao.getAllKeys().get(0);
         assertThat(databaseKey.keyBlob).isEqualTo(TEST_KEY_BLOB_1);
         assertThat(mKeyDao.upgradeKeyBlob(FAKE_CLIENT_UID_2, TEST_KEY_BLOB_1, TEST_KEY_BLOB_2))
                 .isEqualTo(0);
         assertThat(mKeyDao.upgradeKeyBlob(FAKE_CLIENT_UID, TEST_KEY_BLOB_1, TEST_KEY_BLOB_2))
                 .isEqualTo(1);
 
-        databaseKey = mTestDao.getAllKeys().get(0);
+        databaseKey = mKeyDao.getAllKeys().get(0);
         assertThat(databaseKey.keyBlob).isEqualTo(TEST_KEY_BLOB_2);
     }
 
@@ -251,12 +258,12 @@ public class RkpdDatabaseTest {
         mProvisionedKey1.clientUid = FAKE_CLIENT_UID;
         mKeyDao.insertKeys(List.of(mProvisionedKey1));
 
-        ProvisionedKey databaseKey = mTestDao.getAllKeys().get(0);
+        ProvisionedKey databaseKey = mKeyDao.getAllKeys().get(0);
         assertThat(databaseKey.keyBlob).isEqualTo(TEST_KEY_BLOB_1);
         assertThat(mKeyDao.upgradeKeyBlob(FAKE_CLIENT_UID_2, TEST_KEY_BLOB_1, TEST_KEY_BLOB_2))
                 .isEqualTo(0);
 
-        databaseKey = mTestDao.getAllKeys().get(0);
+        databaseKey = mKeyDao.getAllKeys().get(0);
         assertThat(databaseKey.keyBlob).isEqualTo(TEST_KEY_BLOB_1);
     }
 
@@ -282,7 +289,7 @@ public class RkpdDatabaseTest {
         mProvisionedKey2.irpcHal = TEST_HAL_1;
         mKeyDao.insertKeys(List.of(mProvisionedKey1, mProvisionedKey2));
 
-        List<ProvisionedKey> keysPersisted = mTestDao.getAllKeys();
+        List<ProvisionedKey> keysPersisted = mKeyDao.getAllKeys();
         for (ProvisionedKey databaseKey : keysPersisted) {
             assertThat(databaseKey.keyId).isNull();
             assertThat(databaseKey.clientUid).isNull();

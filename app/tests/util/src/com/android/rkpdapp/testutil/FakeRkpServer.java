@@ -70,7 +70,6 @@ public class FakeRkpServer implements AutoCloseable {
                     + "8L01k/PGu1lOXvneIQcUo7ako4uPgpaWugNYHQAAAYBINcxrASC0rWP9VTSO7LdABvcdkv7W2vh+"
                     + "onV0aW1lX3RvX3JlZnJlc2hfaG91cnMYSHgabnVtX2V4dHJhX2F0dGVzdGF0aW9uX2tleXMA";
 
-
     public enum Response {
         // canned responses for :fetchEekChain
         FETCH_EEK_OK(EEK_RESPONSE_OK),

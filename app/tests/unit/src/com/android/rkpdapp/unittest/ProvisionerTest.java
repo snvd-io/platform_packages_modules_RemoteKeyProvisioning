@@ -16,6 +16,8 @@
 
 package com.android.rkpdapp.unittest;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.notNull;
@@ -34,6 +36,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.rkpdapp.GeekResponse;
 import com.android.rkpdapp.RkpdException;
+import com.android.rkpdapp.database.ProvisionedKey;
 import com.android.rkpdapp.database.ProvisionedKeyDao;
 import com.android.rkpdapp.database.RkpKey;
 import com.android.rkpdapp.database.RkpdDatabase;
@@ -43,23 +46,35 @@ import com.android.rkpdapp.provisioner.Provisioner;
 import com.android.rkpdapp.testutil.FakeRkpServer;
 import com.android.rkpdapp.utils.Settings;
 
+import com.google.crypto.tink.subtle.Random;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.security.KeyPair;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 import co.nstant.in.cbor.model.Array;
 
 @RunWith(AndroidJUnit4.class)
 public class ProvisionerTest {
-    private static final RkpKey FAKE_RKP_KEY = new RkpKey(new byte[1], new byte[2], new Array(),
-            "hal", new byte[3]);
+    private static final byte[] FAKE_RKP_KEY_BLOB_1 = Random.randBytes(10);
+    private static final byte[] FAKE_RKP_KEY_BLOB_2 = Random.randBytes(10);
+    private static final byte[] FAKE_RKP_KEY_BLOB_3 = Random.randBytes(10);
+    private static final Instant NOW = Instant.now().truncatedTo(ChronoUnit.SECONDS);
+
+    private static final RkpKey FAKE_RKP_KEY = new RkpKey(FAKE_RKP_KEY_BLOB_1, new byte[2],
+            new Array(), "hal", new byte[3]);
 
     private static Context sContext;
     private Provisioner mProvisioner;
+    private ProvisionedKeyDao mKeyDao;
 
     @BeforeClass
     public static void init() {
@@ -70,10 +85,10 @@ public class ProvisionerTest {
     public void setUp() {
         Settings.clearPreferences(sContext);
 
-        ProvisionedKeyDao keyDao = RkpdDatabase.getDatabase(sContext).provisionedKeyDao();
-        keyDao.deleteAllKeys();
+        mKeyDao = RkpdDatabase.getDatabase(sContext).provisionedKeyDao();
+        mKeyDao.deleteAllKeys();
 
-        mProvisioner = new Provisioner(sContext, keyDao, false);
+        mProvisioner = new Provisioner(sContext, mKeyDao, false);
     }
 
     @After
@@ -120,5 +135,87 @@ public class ProvisionerTest {
             assertThrows(RkpdException.class, () ->
                     mProvisioner.provisionKeys(atom, mockSystem, geekResponse));
         }
+    }
+
+    private byte[] generateCertificateChain(Instant rootCreationTime, Instant leafCreationTime)
+            throws Exception {
+        KeyPair rootKey = Utils.generateEcdsaKeyPair();
+        KeyPair leafKey = Utils.generateEcdsaKeyPair();
+        // Just so that we don't get expired certificates by default.
+        Instant expirationTime = NOW.plus(Duration.ofDays(1));
+        byte[] rootCertEncoded = Utils.signPublicKey(rootKey, rootKey.getPublic(), rootCreationTime,
+                expirationTime).getEncoded();
+        byte[] leafCertEncoded = Utils.signPublicKey(rootKey, leafKey.getPublic(), leafCreationTime,
+                expirationTime).getEncoded();
+
+        byte[] encodedCertChain = new byte[leafCertEncoded.length + rootCertEncoded.length];
+        System.arraycopy(leafCertEncoded, 0, encodedCertChain, 0, leafCertEncoded.length);
+        System.arraycopy(rootCertEncoded, 0, encodedCertChain, leafCertEncoded.length,
+                rootCertEncoded.length);
+        return encodedCertChain;
+    }
+
+    private void setUpClearAttestationKeyTests(Instant failureStart, Instant failureEnd)
+            throws Exception {
+        Instant expiration = NOW.plus(Duration.ofDays(1));
+        Instant rootCreationTime = failureStart.minus(Duration.ofDays(10));
+
+        // add a fake key to the database with certificate time that is in the bad cert range.
+        ProvisionedKey keyBeforeFailure = new ProvisionedKey(
+                FAKE_RKP_KEY_BLOB_1,
+                "fakeHal1",
+                new byte[0],
+                generateCertificateChain(rootCreationTime, failureStart.minus(Duration.ofDays(1))),
+                expiration);
+        ProvisionedKey keyBadCert = new ProvisionedKey(
+                FAKE_RKP_KEY_BLOB_2,
+                "fakeHal2",
+                new byte[0],
+                generateCertificateChain(rootCreationTime, failureStart.plus(Duration.ofHours(1))),
+                expiration);
+        ProvisionedKey keyAfterFailure = new ProvisionedKey(
+                FAKE_RKP_KEY_BLOB_3,
+                "fakeHal3",
+                new byte[0],
+                generateCertificateChain(rootCreationTime, failureEnd.plus(Duration.ofDays(1))),
+                expiration);
+        mKeyDao.insertKeys(List.of(keyBeforeFailure, keyBadCert, keyAfterFailure));
+    }
+
+    @Test
+    public void testProvisionerClearsAttestationKeysOnResponse() throws Exception {
+        Instant failureTimeStart = NOW.minus(Duration.ofDays(5));
+        Instant failureTimeEnd = NOW.minus(Duration.ofDays(2));
+
+        setUpClearAttestationKeyTests(failureTimeStart, failureTimeEnd);
+
+        assertThat(mKeyDao.getAllKeys()).hasSize(3);
+
+        GeekResponse resp = new GeekResponse();
+        resp.lastBadCertTimeStart = failureTimeStart;
+        resp.lastBadCertTimeEnd = failureTimeEnd;
+
+        mProvisioner.clearBadAttestationKeys(resp);
+
+        assertThat(mKeyDao.getAllKeys()).hasSize(2);
+    }
+
+    @Test
+    public void testProvisionerClearsAttestationKeysOnlyOnce() throws Exception {
+        Instant failureTimeStart = NOW.minus(Duration.ofDays(5));
+        Instant failureTimeEnd = NOW.minus(Duration.ofDays(2));
+
+        setUpClearAttestationKeyTests(failureTimeStart, failureTimeEnd);
+
+        assertThat(mKeyDao.getAllKeys()).hasSize(3);
+
+        GeekResponse resp = new GeekResponse();
+        resp.lastBadCertTimeStart = failureTimeStart;
+        resp.lastBadCertTimeEnd = failureTimeEnd;
+        Settings.setLastBadCertTimeRange(sContext, failureTimeStart, failureTimeEnd);
+
+        mProvisioner.clearBadAttestationKeys(resp);
+
+        assertThat(mKeyDao.getAllKeys()).hasSize(3);
     }
 }

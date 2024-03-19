@@ -22,6 +22,7 @@ import android.os.SystemProperties;
 import android.util.Log;
 
 import com.android.rkpdapp.GeekResponse;
+import com.android.rkpdapp.database.InstantConverter;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -45,6 +46,7 @@ public class Settings {
     public static final int FAILURE_DATA_USAGE_MAX = 1024 * 1024;
     public static final Duration FAILURE_DATA_USAGE_WINDOW = Duration.ofDays(1);
     public static final int MAX_REQUEST_TIME_MS_DEFAULT = 20000;
+    public static final int NO_TIME_PROVIDED = -1;
 
     private static final String KEY_EXPIRING_BY = "expiring_by";
     private static final String KEY_EXTRA_KEYS = "extra_keys";
@@ -54,6 +56,8 @@ public class Settings {
     private static final String KEY_FAILURE_BYTES = "failure_data";
     private static final String KEY_URL = "url";
     private static final String KEY_MAX_REQUEST_TIME = "max_request_time";
+    private static final String KEY_LAST_BAD_CERT_TIME_START = "bad_cert_time_start";
+    private static final String KEY_LAST_BAD_CERT_TIME_END = "bad_cert_time_end";
     private static final String PREFERENCES_NAME = "com.android.rkpdapp.utils.preferences";
     private static final String TAG = "RkpdSettings";
 
@@ -63,7 +67,7 @@ public class Settings {
      * resulted in errors, then false will be returned.
      * <p>
      * Additionally, the rolling window of data usage is managed within this call. The used data
-     * budget will be reset if a time greater than @{code FAILURE_DATA_USAGE_WINDOW} has passed.
+     * budget will be reset if a time greater than {@code FAILURE_DATA_USAGE_WINDOW} has passed.
      *
      * @param context The application context
      * @param curTime An instant representing the current time to measure the window against. If
@@ -298,6 +302,58 @@ public class Settings {
         if (sharedPref.getInt(KEY_MAX_REQUEST_TIME, MAX_REQUEST_TIME_MS_DEFAULT) != 0) {
             SharedPreferences.Editor editor = sharedPref.edit();
             editor.putInt(KEY_MAX_REQUEST_TIME, timeout);
+            editor.apply();
+        }
+    }
+
+    /**
+     * Gets start time in milliseconds when the bad certificates were provided by server.
+     */
+    public static Instant getLastBadCertTimeStart(Context context) {
+        SharedPreferences sharedPref = getSharedPreferences(context);
+        long lastBadCertTimeStartMillis =
+                sharedPref.getLong(KEY_LAST_BAD_CERT_TIME_START, NO_TIME_PROVIDED);
+        if (lastBadCertTimeStartMillis != -1) {
+            return InstantConverter.fromTimestamp(lastBadCertTimeStartMillis);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Gets end time in milliseconds when the bad certificates were provided by server.
+     */
+    public static Instant getLastBadCertTimeEnd(Context context) {
+        SharedPreferences sharedPref = getSharedPreferences(context);
+        long lastBadCertTimeEndMillis =
+                sharedPref.getLong(KEY_LAST_BAD_CERT_TIME_END, NO_TIME_PROVIDED);
+        if (lastBadCertTimeEndMillis != -1) {
+            return InstantConverter.fromTimestamp(lastBadCertTimeEndMillis);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Sets the time range for the last bad certificates.
+     */
+    public static void setLastBadCertTimeRange(Context context, Instant lastBadCertTimeStart,
+            Instant lastBadCertTimeEnd) {
+        long startMillis = lastBadCertTimeStart.toEpochMilli();
+        long endMillis = lastBadCertTimeEnd.toEpochMilli();
+        SharedPreferences sharedPref = getSharedPreferences(context);
+        SharedPreferences.Editor editor = sharedPref.edit();
+
+        boolean isUpdated = false;
+        if (sharedPref.getLong(KEY_LAST_BAD_CERT_TIME_START, NO_TIME_PROVIDED) != startMillis) {
+            editor.putLong(KEY_LAST_BAD_CERT_TIME_START, startMillis);
+            isUpdated = true;
+        }
+        if (sharedPref.getLong(KEY_LAST_BAD_CERT_TIME_END, NO_TIME_PROVIDED) != endMillis) {
+            editor.putLong(KEY_LAST_BAD_CERT_TIME_END, endMillis);
+            isUpdated = true;
+        }
+        if (isUpdated) {
             editor.apply();
         }
     }

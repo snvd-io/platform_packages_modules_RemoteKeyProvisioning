@@ -45,16 +45,28 @@ public abstract class ProvisionedKeyDao {
     public abstract void updateKey(ProvisionedKey key);
 
     /**
-     * Delete all expiring keys provided by given Instant.
+     * Gets all the keys in the database.
      */
-    @Query("DELETE FROM provisioned_keys WHERE expiration_time < :expiryTime")
-    public abstract void deleteExpiringKeys(Instant expiryTime);
+    @Query("SELECT * FROM provisioned_keys")
+    public abstract List<ProvisionedKey> getAllKeys();
+
+    /**
+     * Deletes a specific key from the database.
+     */
+    @Query("DELETE from provisioned_keys WHERE key_blob = :keyBlob")
+    public abstract void deleteKey(byte[] keyBlob);
 
     /**
      * Delete all the provisioned keys.
      */
     @Query("DELETE FROM provisioned_keys")
     public abstract void deleteAllKeys();
+
+    /**
+     * Delete all expiring keys provided by given Instant.
+     */
+    @Query("DELETE FROM provisioned_keys WHERE expiration_time < :expiryTime")
+    public abstract void deleteExpiringKeys(Instant expiryTime);
 
     /**
      * Get a count of provisioned keys for a specific IRPC that are expiring at a given Instant.

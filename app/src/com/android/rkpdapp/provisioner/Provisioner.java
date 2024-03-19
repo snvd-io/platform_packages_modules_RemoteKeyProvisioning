@@ -35,6 +35,7 @@ import com.android.rkpdapp.utils.X509Utils;
 
 import java.security.cert.X509Certificate;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -168,7 +169,7 @@ public class Provisioner {
             X509Certificate[] certChain = X509Utils.formatX509Certs(chain);
             X509Certificate leafCertificate = certChain[0];
             long expirationDate = X509Utils.getExpirationTimeForCertificateChain(certChain)
-                    .getTime();
+                    .toInstant().toEpochMilli();
             byte[] rawPublicKey = X509Utils.getAndFormatRawPublicKey(leafCertificate);
             if (rawPublicKey == null) {
                 Log.e(TAG, "Skipping malformed public key.");
@@ -201,6 +202,46 @@ public class Provisioner {
     private void checkForInterrupts() throws InterruptedException {
         if (Thread.interrupted()) {
             throw new InterruptedException();
+        }
+    }
+
+    /**
+     * Clears bad attestation keys on the basis of information provided in the FetchGeek response.
+     */
+    public void clearBadAttestationKeys(GeekResponse resp) {
+        if (resp.lastBadCertTimeStart == null || resp.lastBadCertTimeEnd == null) {
+            // if there is no time sent, no need to do anything.
+            return;
+        }
+        if (resp.lastBadCertTimeStart.equals(Settings.getLastBadCertTimeStart(mContext))
+                && resp.lastBadCertTimeEnd.equals(Settings.getLastBadCertTimeEnd(mContext))) {
+            // if the time is same as already stored version, no need to do anything.
+            return;
+        }
+        // clear the attestation keys on the basis of time.
+        checkAndDeleteBadKeys(resp.lastBadCertTimeStart, resp.lastBadCertTimeEnd);
+
+        // store the time.
+        Settings.setLastBadCertTimeRange(mContext, resp.lastBadCertTimeStart,
+                resp.lastBadCertTimeEnd);
+    }
+
+    private void checkAndDeleteBadKeys(Instant startTime, Instant endTime) {
+        try {
+            List<ProvisionedKey> allKeys = mKeyDao.getAllKeys();
+            for (int i = 0; i < allKeys.size(); i++) {
+                ProvisionedKey key = allKeys.get(i);
+                X509Certificate[] certChain = X509Utils.formatX509Certs(key.certificateChain);
+                X509Certificate leafCertificate = certChain[0];
+                Instant creationTime = leafCertificate.getNotBefore().toInstant()
+                        .truncatedTo(ChronoUnit.MILLIS);
+
+                if (!creationTime.isBefore(startTime) && !creationTime.isAfter(endTime)) {
+                    mKeyDao.deleteKey(key.keyBlob);
+                }
+            }
+        } catch (RkpdException ex) {
+            Log.e(TAG, "Could not convert certificate chain to X509 certificates.", ex);
         }
     }
 }
