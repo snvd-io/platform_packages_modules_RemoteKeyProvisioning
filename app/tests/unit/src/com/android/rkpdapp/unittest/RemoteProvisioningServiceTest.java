@@ -46,6 +46,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.time.Duration;
+
 @RunWith(AndroidJUnit4.class)
 public class RemoteProvisioningServiceTest {
     private IRemoteProvisioning mBinder;
@@ -81,8 +83,19 @@ public class RemoteProvisioningServiceTest {
     }
 
     @Test
-    public void getRegistrationNoHostName() throws Exception {
+    public void getRegistrationNoHostNameWithoutServerUrl() throws Exception {
         try (SystemPropertySetter ignored = SystemPropertySetter.setHostname("")) {
+            IGetRegistrationCallback callback = mock(IGetRegistrationCallback.class);
+            mBinder.getRegistration(42, "irpc", callback);
+            verify(callback).onError(matches("RKP is disabled.*"));
+        }
+    }
+
+    @Test
+    public void getRegistrationNoHostNameWithServerUrl() throws Exception {
+        try (SystemPropertySetter ignored = SystemPropertySetter.setHostname("")) {
+            Settings.setDeviceConfig(mContext, Settings.EXTRA_SIGNED_KEYS_AVAILABLE_DEFAULT,
+                    Duration.ofDays(3), "https://notsure.whetherthisworks.combutjustincase");
             IGetRegistrationCallback callback = mock(IGetRegistrationCallback.class);
             mBinder.getRegistration(42, "irpc", callback);
             verify(callback).onError(matches("RKP is disabled.*"));

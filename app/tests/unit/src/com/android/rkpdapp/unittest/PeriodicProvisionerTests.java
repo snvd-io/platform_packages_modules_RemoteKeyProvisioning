@@ -129,13 +129,32 @@ public class PeriodicProvisionerTests {
     }
 
     @Test
-    public void provisionWithNoHostName() throws Exception {
+    public void provisionWithNoHostNameWithoutServerUrl() throws Exception {
         // setup work with boot receiver
         new BootReceiver().onReceive(mContext, null);
 
         try (SystemPropertySetter ignored = SystemPropertySetter.setHostname("")) {
             SystemInterface mockHal = mock(SystemInterface.class);
             ServiceManagerInterface.setInstances(new SystemInterface[]{mockHal});
+
+            WorkInfo worker = getProvisionerWorkInfo();
+            WorkManagerTestInitHelper.getTestDriver(mContext).setAllConstraintsMet(worker.getId());
+        }
+
+        WorkInfo worker = getProvisionerWorkInfo();
+        assertThat(worker.getState()).isEqualTo(WorkInfo.State.CANCELLED);
+    }
+
+    @Test
+    public void provisionWithNoHostNameWithServerUrl() throws Exception {
+        // setup work with boot receiver
+        new BootReceiver().onReceive(mContext, null);
+
+        try (SystemPropertySetter ignored = SystemPropertySetter.setHostname("")) {
+            SystemInterface mockHal = mock(SystemInterface.class);
+            ServiceManagerInterface.setInstances(new SystemInterface[]{mockHal});
+            Settings.setDeviceConfig(mContext, Settings.EXTRA_SIGNED_KEYS_AVAILABLE_DEFAULT,
+                    Duration.ofDays(3), "https://notsure.whetherthisworks.combutjustincase");
 
             WorkInfo worker = getProvisionerWorkInfo();
             WorkManagerTestInitHelper.getTestDriver(mContext).setAllConstraintsMet(worker.getId());
