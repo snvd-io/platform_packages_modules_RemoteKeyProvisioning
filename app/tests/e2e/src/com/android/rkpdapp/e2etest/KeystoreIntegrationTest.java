@@ -91,6 +91,7 @@ public class KeystoreIntegrationTest {
     private final String mInstanceName;
     private final String mServiceName;
     private ProvisionedKeyDao mKeyDao;
+    private AutoCloseable mPeriodicProvisionerLock;
 
     @Rule
     public final TestName mName = new TestName();
@@ -125,6 +126,7 @@ public class KeystoreIntegrationTest {
 
         Settings.clearPreferences(sContext);
 
+        mPeriodicProvisionerLock = PeriodicProvisioner.lock();
         mKeyDao = RkpdDatabase.getDatabase(sContext).provisionedKeyDao();
         mKeyStore = KeyStore.getInstance("AndroidKeyStore");
         mKeyStore.load(null);
@@ -145,6 +147,10 @@ public class KeystoreIntegrationTest {
         }
 
         ServiceManagerInterface.setInstances(null);
+
+        if (mPeriodicProvisionerLock != null) {
+            mPeriodicProvisionerLock.close();
+        }
     }
 
     @Test
