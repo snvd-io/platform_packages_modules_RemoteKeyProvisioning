@@ -38,6 +38,7 @@ import com.android.rkpdapp.utils.Settings;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 
 import co.nstant.in.cbor.CborException;
 
@@ -53,6 +54,7 @@ public class PeriodicProvisioner extends Worker {
 
     private final Context mContext;
     private final ProvisionedKeyDao mKeyDao;
+    private static final ReentrantLock sLock = new ReentrantLock();
 
     public PeriodicProvisioner(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
@@ -61,10 +63,33 @@ public class PeriodicProvisioner extends Worker {
     }
 
     /**
+     * Holds a lock, preventing any work from proceeding.
+     * The returned object must be closed for PeriodicProvisioner to perform any future work.
+     */
+    public static AutoCloseable lock() {
+        sLock.lock();
+        return new AutoCloseable() {
+            @Override
+            public void close() {
+                sLock.unlock();
+            }
+        };
+    }
+
+    /**
      * Overrides the default doWork method to handle checking and provisioning the device.
      */
     @Override
     public Result doWork() {
+        sLock.lock();
+        try {
+            return doSynchronizedWork();
+        } finally {
+            sLock.unlock();
+        }
+    }
+
+    private Result doSynchronizedWork() {
         Log.i(TAG, "Waking up; checking provisioning state.");
 
         SystemInterface[] irpcs = ServiceManagerInterface.getAllInstances();
