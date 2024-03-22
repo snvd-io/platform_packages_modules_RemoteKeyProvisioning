@@ -73,6 +73,7 @@ public class RkpdHostTestHelperTests {
     private ProvisionedKeyDao mRealDao;
     private TestProvisionedKeyDao mTestDao;
     private PeriodicProvisioner mProvisioner;
+    private AutoCloseable mPeriodicProvisionerLock;
 
     @Rule
     public final TestName mName = new TestName();
@@ -104,6 +105,7 @@ public class RkpdHostTestHelperTests {
                 .that(ServerInterface.isNetworkConnected(sContext))
                 .isTrue();
 
+        mPeriodicProvisionerLock = PeriodicProvisioner.lock();
         Settings.clearPreferences(sContext);
         mRealDao = RkpdDatabase.getDatabase(sContext).provisionedKeyDao();
         mRealDao.deleteAllKeys();
@@ -132,6 +134,10 @@ public class RkpdHostTestHelperTests {
         keyStore.deleteEntry(KEY_ALIAS);
 
         ServiceManagerInterface.setInstances(null);
+
+        if (mPeriodicProvisionerLock != null) {
+            mPeriodicProvisionerLock.close();
+        }
     }
 
     @Test
