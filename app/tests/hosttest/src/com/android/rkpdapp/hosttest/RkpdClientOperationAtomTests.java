@@ -138,7 +138,7 @@ public final class RkpdClientOperationAtomTests extends AtomsHostTest {
 
     @Test
     public void testGetRegistrationWhenUnsupported() throws Exception {
-        runUnitTest("getRegistrationNoHostName", "RemoteProvisioningServiceTest");
+        runUnitTest("getRegistrationNoHostNameWithServerUrl", "RemoteProvisioningServiceTest");
         List<RkpdClientOperation> atoms = getAtoms(RkpdExtensionAtoms.rkpdClientOperation);
         assertThat(atoms).hasSize(1);
         verifyUnitTestAtom(atoms.get(0), Operation.OPERATION_GET_REGISTRATION,
