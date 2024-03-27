@@ -66,6 +66,7 @@ public class AvfIntegrationTest extends MicrodroidDeviceTestBase {
 
     private ProvisionedKeyDao mKeyDao;
     private PeriodicProvisioner mProvisioner;
+    private AutoCloseable mPeriodicProvisionerLock;
 
     @Before
     public void setUp() throws Exception {
@@ -83,6 +84,7 @@ public class AvfIntegrationTest extends MicrodroidDeviceTestBase {
         mKeyDao = RkpdDatabase.getDatabase(getContext()).provisionedKeyDao();
         mKeyDao.deleteAllKeys();
 
+        mPeriodicProvisionerLock = PeriodicProvisioner.lock();
         mProvisioner =
                 TestWorkerBuilder.from(
                                 getContext(),
@@ -102,6 +104,9 @@ public class AvfIntegrationTest extends MicrodroidDeviceTestBase {
             mKeyDao.deleteAllKeys();
         }
         Settings.clearPreferences(getContext());
+        if (mPeriodicProvisionerLock != null) {
+            mPeriodicProvisionerLock.close();
+        }
     }
 
     @Test

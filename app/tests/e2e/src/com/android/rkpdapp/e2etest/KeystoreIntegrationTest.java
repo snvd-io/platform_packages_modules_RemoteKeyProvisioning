@@ -72,6 +72,7 @@ import java.security.spec.ECGenParameterSpec;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Executors;
 
 @RunWith(Parameterized.class)
@@ -123,6 +124,11 @@ public class KeystoreIntegrationTest {
                 .withMessage("RKP Integration tests rely on network availability.")
                 .that(ServerInterface.isNetworkConnected(sContext))
                 .isTrue();
+
+        assume()
+                .withMessage(mInstanceName + " is not supported by this system")
+                .that(mInstanceName)
+                .isIn(List.of("default", "strongbox"));
 
         Settings.clearPreferences(sContext);
 
