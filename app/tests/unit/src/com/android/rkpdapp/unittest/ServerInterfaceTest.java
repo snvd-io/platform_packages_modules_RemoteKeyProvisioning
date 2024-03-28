@@ -20,6 +20,8 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.util.Base64;
@@ -408,6 +410,35 @@ public class ServerInterfaceTest {
         Mockito.when(serverInterface.getRegionalProperty()).thenReturn("us");
         assertThat(serverInterface.getConnectTimeoutMs()).isEqualTo(
                 ServerInterface.SYNC_CONNECT_TIMEOUT_OPEN_MS);
+    }
+
+    @Test
+    public void testConnectionConsent() throws Exception {
+        String cnGmsFeature = "cn.google.services";
+        PackageManager mockedPackageManager = Mockito.mock(PackageManager.class);
+        Context mockedContext = Mockito.mock(Context.class);
+        ApplicationInfo fakeApplicationInfo = new ApplicationInfo();
+
+        Mockito.when(mockedContext.getPackageManager()).thenReturn(mockedPackageManager);
+        Mockito.when(mockedPackageManager.hasSystemFeature(cnGmsFeature)).thenReturn(true);
+        Mockito.when(mockedPackageManager.getApplicationInfo(Mockito.any(), Mockito.eq(0)))
+                .thenReturn(fakeApplicationInfo);
+
+        fakeApplicationInfo.enabled = false;
+        assertThat(ServerInterface.assumeNetworkConsent(mockedContext)).isFalse();
+
+        fakeApplicationInfo.enabled = true;
+        assertThat(ServerInterface.assumeNetworkConsent(mockedContext)).isTrue();
+
+        Mockito.when(mockedPackageManager.getApplicationInfo(Mockito.any(), Mockito.eq(0)))
+                .thenThrow(new PackageManager.NameNotFoundException());
+        assertThat(ServerInterface.assumeNetworkConsent(mockedContext)).isFalse();
+
+        Mockito.when(mockedPackageManager.hasSystemFeature(cnGmsFeature)).thenReturn(false);
+        assertThat(ServerInterface.assumeNetworkConsent(mockedContext)).isTrue();
+
+        fakeApplicationInfo.enabled = false;
+        assertThat(ServerInterface.assumeNetworkConsent(mockedContext)).isTrue();
     }
 
     private void mockConnectivityFailure(ConnectivityState state) {
