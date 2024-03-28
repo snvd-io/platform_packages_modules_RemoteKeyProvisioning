@@ -17,6 +17,7 @@
 package com.android.rkpdapp.interfaces;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
 import android.net.TrafficStats;
@@ -69,6 +70,9 @@ public class ServerInterface {
     private static final String CERTIFICATE_SIGNING_URL = ":signCertificates";
     private static final String CHALLENGE_PARAMETER = "challenge";
     private static final String REQUEST_ID_PARAMETER = "request_id";
+    private static final String GMS_PACKAGE = "com.google.android.gms";
+    private static final String CHINA_GMS_FEATURE = "cn.google.services";
+
     private final Context mContext;
     private final boolean mIsAsync;
 
@@ -230,6 +234,12 @@ public class ServerInterface {
             throw new RkpdException(RkpdException.ErrorCode.NO_NETWORK_CONNECTIVITY,
                     "No network detected.");
         }
+        // Since fetchGeek would be the first call for any sort of provisioning, we are okay
+        // checking network consent here.
+        if (!assumeNetworkConsent(mContext)) {
+            throw new RkpdException(RkpdException.ErrorCode.NETWORK_COMMUNICATION_ERROR,
+                    "Network communication consent not provided. Need to enable GMSCore app.");
+        }
         byte[] input = CborUtils.buildProvisioningInfo(mContext);
         byte[] cborBytes =
                 connectAndGetData(metrics, generateFetchGeekUrl(), input, Operation.FETCH_GEEK);
@@ -341,6 +351,29 @@ public class ServerInterface {
 
         final Charset charset = getCharsetFromContentTypeHeader(contentType);
         return new String(bytes, charset);
+    }
+
+    /**
+     * Checks whether GMSCore is installed and enabled for restricted regions.
+     * This lets us assume that user has consented to connecting to Google
+     * servers to provide attestation service.
+     * For all other regions, we assume consent by default since this is an
+     * Android OS-level application.
+     *
+     * @return True if user consent can be assumed else false.
+     */
+    @VisibleForTesting
+    public static boolean assumeNetworkConsent(Context context) {
+        PackageManager pm = context.getPackageManager();
+        if (pm.hasSystemFeature(CHINA_GMS_FEATURE)) {
+            // For china GMS, we can simply check whether GMS package is installed and enabled.
+            try {
+                return pm.getApplicationInfo(GMS_PACKAGE, 0).enabled;
+            } catch (PackageManager.NameNotFoundException e) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static Charset getCharsetFromContentTypeHeader(String contentType) {
