@@ -105,11 +105,6 @@ public class RkpdHostTestHelperTests {
                 .that(ServerInterface.isNetworkConnected(sContext))
                 .isTrue();
 
-        assume()
-                .withMessage(mInstanceName + " is not supported by this system")
-                .that(mInstanceName)
-                .isIn(List.of("default", "strongbox"));
-
         mPeriodicProvisionerLock = PeriodicProvisioner.lock();
         Settings.clearPreferences(sContext);
         mRealDao = RkpdDatabase.getDatabase(sContext).provisionedKeyDao();
