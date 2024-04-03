@@ -53,8 +53,10 @@ import com.android.rkpdapp.utils.Settings;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mockito;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -70,37 +72,41 @@ public class PeriodicProvisionerTests {
     private static final RkpKey FAKE_RKP_KEY = new RkpKey(new byte[1], new byte[2], new Array(),
             "fake-hal", new byte[3]);
 
+    private static Context sContext;
     private PeriodicProvisioner mProvisioner;
-    private Context mContext;
+
+    @BeforeClass
+    public static void init() {
+        sContext = Mockito.spy(ApplicationProvider.getApplicationContext());
+    }
 
     @Before
     public void setUp() {
-        mContext = ApplicationProvider.getApplicationContext();
-
         Assume.assumeFalse(Settings.getDefaultUrl().isEmpty());
 
-        RkpdDatabase.getDatabase(mContext).provisionedKeyDao().deleteAllKeys();
+        RkpdDatabase.getDatabase(sContext).provisionedKeyDao().deleteAllKeys();
         mProvisioner = TestWorkerBuilder.from(
-                mContext,
+                sContext,
                 PeriodicProvisioner.class,
                 Executors.newSingleThreadExecutor()).build();
 
         Configuration config = new Configuration.Builder()
                 .setExecutor(new SynchronousExecutor())
                 .build();
-        WorkManagerTestInitHelper.initializeTestWorkManager(mContext, config);
-        Settings.clearPreferences(mContext);
+        WorkManagerTestInitHelper.initializeTestWorkManager(sContext, config);
+        Settings.clearPreferences(sContext);
+        Utils.mockConnectivityState(sContext, Utils.ConnectivityState.CONNECTED);
     }
 
     @After
     public void tearDown() {
-        RkpdDatabase.getDatabase(mContext).provisionedKeyDao().deleteAllKeys();
+        RkpdDatabase.getDatabase(sContext).provisionedKeyDao().deleteAllKeys();
         ServiceManagerInterface.setInstances(null);
-        Settings.clearPreferences(mContext);
+        Settings.clearPreferences(sContext);
     }
 
     private WorkInfo getProvisionerWorkInfo() throws ExecutionException, InterruptedException {
-        WorkManager workManager = WorkManager.getInstance(mContext);
+        WorkManager workManager = WorkManager.getInstance(sContext);
         List<WorkInfo> infos = workManager.getWorkInfosForUniqueWork(
                 PeriodicProvisioner.UNIQUE_WORK_NAME).get();
         assertThat(infos.size()).isEqualTo(1);
@@ -110,20 +116,20 @@ public class PeriodicProvisionerTests {
     @Test
     public void provisionWithNoHals() throws Exception {
         // setup work with boot receiver
-        new BootReceiver().onReceive(mContext, null);
+        new BootReceiver().onReceive(sContext, null);
 
         WorkInfo worker = getProvisionerWorkInfo();
         assertThat(worker.getState()).isEqualTo(WorkInfo.State.ENQUEUED);
 
         ServiceManagerInterface.setInstances(new SystemInterface[0]);
-        WorkManagerTestInitHelper.getTestDriver(mContext).setAllConstraintsMet(worker.getId());
+        WorkManagerTestInitHelper.getTestDriver(sContext).setAllConstraintsMet(worker.getId());
 
         // the worker should uninstall itself once it realizes it's not needed on this system
         worker = getProvisionerWorkInfo();
         assertThat(worker.getState()).isEqualTo(WorkInfo.State.CANCELLED);
 
         // verify the worker doesn't run again
-        WorkManagerTestInitHelper.getTestDriver(mContext).setAllConstraintsMet(worker.getId());
+        WorkManagerTestInitHelper.getTestDriver(sContext).setAllConstraintsMet(worker.getId());
         worker = getProvisionerWorkInfo();
         assertThat(worker.getState()).isEqualTo(WorkInfo.State.CANCELLED);
     }
@@ -131,14 +137,14 @@ public class PeriodicProvisionerTests {
     @Test
     public void provisionWithNoHostNameWithoutServerUrl() throws Exception {
         // setup work with boot receiver
-        new BootReceiver().onReceive(mContext, null);
+        new BootReceiver().onReceive(sContext, null);
 
         try (SystemPropertySetter ignored = SystemPropertySetter.setHostname("")) {
             SystemInterface mockHal = mock(SystemInterface.class);
             ServiceManagerInterface.setInstances(new SystemInterface[]{mockHal});
 
             WorkInfo worker = getProvisionerWorkInfo();
-            WorkManagerTestInitHelper.getTestDriver(mContext).setAllConstraintsMet(worker.getId());
+            WorkManagerTestInitHelper.getTestDriver(sContext).setAllConstraintsMet(worker.getId());
         }
 
         WorkInfo worker = getProvisionerWorkInfo();
@@ -148,16 +154,16 @@ public class PeriodicProvisionerTests {
     @Test
     public void provisionWithNoHostNameWithServerUrl() throws Exception {
         // setup work with boot receiver
-        new BootReceiver().onReceive(mContext, null);
+        new BootReceiver().onReceive(sContext, null);
 
         try (SystemPropertySetter ignored = SystemPropertySetter.setHostname("")) {
             SystemInterface mockHal = mock(SystemInterface.class);
             ServiceManagerInterface.setInstances(new SystemInterface[]{mockHal});
-            Settings.setDeviceConfig(mContext, Settings.EXTRA_SIGNED_KEYS_AVAILABLE_DEFAULT,
+            Settings.setDeviceConfig(sContext, Settings.EXTRA_SIGNED_KEYS_AVAILABLE_DEFAULT,
                     Duration.ofDays(3), "https://notsure.whetherthisworks.combutjustincase");
 
             WorkInfo worker = getProvisionerWorkInfo();
-            WorkManagerTestInitHelper.getTestDriver(mContext).setAllConstraintsMet(worker.getId());
+            WorkManagerTestInitHelper.getTestDriver(sContext).setAllConstraintsMet(worker.getId());
         }
 
         WorkInfo worker = getProvisionerWorkInfo();
@@ -186,7 +192,7 @@ public class PeriodicProvisionerTests {
                 FakeRkpServer.Response.INTERNAL_ERROR,
                 FakeRkpServer.Response.SIGN_CERTS_OK_VALID_CBOR)) {
             saveUrlInSettings(fakeRkpServer);
-            Settings.setMaxRequestTime(mContext, 100);
+            Settings.setMaxRequestTime(sContext, 100);
             SystemInterface mockHal = mock(SystemInterface.class);
             ServiceManagerInterface.setInstances(new SystemInterface[]{mockHal});
             assertThat(mProvisioner.doWork()).isEqualTo(ListenableWorker.Result.failure());
@@ -198,7 +204,7 @@ public class PeriodicProvisionerTests {
 
     @Test
     public void fetchEekDisablesRkp() throws Exception {
-        ProvisionedKeyDao dao = RkpdDatabase.getDatabase(mContext).provisionedKeyDao();
+        ProvisionedKeyDao dao = RkpdDatabase.getDatabase(sContext).provisionedKeyDao();
         ProvisionedKey fakeKey = new ProvisionedKey(new byte[42], "fake-irpc", new byte[3],
                 new byte[2], Instant.now().plusSeconds(120));
         dao.insertKeys(List.of(fakeKey));
@@ -222,7 +228,7 @@ public class PeriodicProvisionerTests {
 
     @Test
     public void provisioningExpiresOldKeys() throws Exception {
-        ProvisionedKeyDao dao = RkpdDatabase.getDatabase(mContext).provisionedKeyDao();
+        ProvisionedKeyDao dao = RkpdDatabase.getDatabase(sContext).provisionedKeyDao();
         ProvisionedKey oldKey = new ProvisionedKey(new byte[1], "fake-irpc", new byte[2],
                 new byte[3],
                 Instant.now().minus(RegistrationBinder.MIN_KEY_LIFETIME.multipliedBy(2)));
@@ -324,6 +330,6 @@ public class PeriodicProvisionerTests {
     }
 
     private void saveUrlInSettings(FakeRkpServer server) {
-        Settings.setDeviceConfig(mContext, 1, Duration.ofSeconds(10), server.getUrl());
+        Settings.setDeviceConfig(sContext, 1, Duration.ofSeconds(10), server.getUrl());
     }
 }
