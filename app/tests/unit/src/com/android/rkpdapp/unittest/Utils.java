@@ -155,15 +155,23 @@ public class Utils {
 
     public static X509Certificate signPublicKey(KeyPair issuerKeyPair, PublicKey publicKeyToSign,
             Instant expirationInstant) throws Exception {
+        Instant now = Instant.now();
+        return signPublicKey(issuerKeyPair, publicKeyToSign, now, expirationInstant);
+    }
+
+    /**
+     * Generates a certificate for given key and issuer.
+     */
+    public static X509Certificate signPublicKey(KeyPair issuerKeyPair, PublicKey publicKeyToSign,
+            Instant creationInstant, Instant expirationInstant) throws Exception {
         X500Principal issuer = new X500Principal("CN=TEE");
         BigInteger serial = BigInteger.ONE;
         X500Principal subject = new X500Principal("CN=TEE");
 
-        Instant now = Instant.now();
         X509V3CertificateGenerator certificateBuilder = new X509V3CertificateGenerator();
         certificateBuilder.setIssuerDN(issuer);
         certificateBuilder.setSerialNumber(serial);
-        certificateBuilder.setNotBefore(Date.from(now));
+        certificateBuilder.setNotBefore(Date.from(creationInstant));
         certificateBuilder.setNotAfter(Date.from(expirationInstant));
         certificateBuilder.setSignatureAlgorithm("SHA256WITHECDSA");
         certificateBuilder.setSubjectDN(subject);
