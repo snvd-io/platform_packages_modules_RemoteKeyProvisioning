@@ -20,6 +20,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import android.content.Context;
@@ -38,6 +39,7 @@ import org.junit.runner.RunWith;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @RunWith(AndroidJUnit4.class)
 public class SettingsTest {
@@ -213,5 +215,15 @@ public class SettingsTest {
         assertEquals(20000, Settings.getMaxRequestTime(sContext));
         Settings.setMaxRequestTime(sContext, 100);
         assertEquals(100, Settings.getMaxRequestTime(sContext));
+    }
+
+    @Test
+    public void testLastBadCertTimeRangeSetting() {
+        assertNull(Settings.getLastBadCertTimeStart(sContext));
+        assertNull(Settings.getLastBadCertTimeEnd(sContext));
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        Settings.setLastBadCertTimeRange(sContext, now, now);
+        assertEquals(now, Settings.getLastBadCertTimeStart(sContext));
+        assertEquals(now, Settings.getLastBadCertTimeEnd(sContext));
     }
 }
