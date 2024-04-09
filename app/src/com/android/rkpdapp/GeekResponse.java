@@ -17,6 +17,7 @@
 package com.android.rkpdapp;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -49,6 +50,8 @@ public class GeekResponse {
     public int numExtraAttestationKeys;
     public Duration timeToRefresh;
     public String provisioningUrl;
+    public Instant lastBadCertTimeStart;
+    public Instant lastBadCertTimeEnd;
 
     /**
      * Default initializer.
@@ -56,6 +59,8 @@ public class GeekResponse {
     public GeekResponse() {
         mCurveToGeek = new HashMap<>();
         numExtraAttestationKeys = NO_EXTRA_KEY_UPDATE;
+        lastBadCertTimeStart = null;
+        lastBadCertTimeEnd = null;
     }
 
     /**
