@@ -35,6 +35,8 @@ import org.junit.runner.RunWith;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -58,9 +60,12 @@ public class CborUtilsTest {
     private Array mGeekChain2;
     private byte[] mEncodedGeekChain2;
     private Map mDeviceConfig;
+    private Map mDeviceConfigWithBadCertInfo;
     private static final byte[] CHALLENGE = new byte[]{0x0a, 0x0b, 0x0c};
     private static final int TEST_EXTRA_KEYS = 18;
     private static final int TEST_TIME_TO_REFRESH_HOURS = 42;
+    private static final Instant BAD_CERT_START = Instant.now().minus(Duration.ofDays(2));
+    private static final Instant BAD_CERT_END = Instant.now().plus(Duration.ofDays(2));
     private static final String TEST_URL = "https://www.wonderifthisisvalid.combutjustincase";
 
     private byte[] encodeDataItem(DataItem toEncode) throws Exception {
@@ -95,6 +100,18 @@ public class CborUtilsTest {
                           new UnsignedInteger(TEST_TIME_TO_REFRESH_HOURS))
                      .put(new UnicodeString(CborUtils.PROVISIONING_URL),
                           new UnicodeString(TEST_URL));
+
+        mDeviceConfigWithBadCertInfo = new Map();
+        mDeviceConfigWithBadCertInfo.put(new UnicodeString(CborUtils.EXTRA_KEYS),
+                          new UnsignedInteger(TEST_EXTRA_KEYS))
+                     .put(new UnicodeString(CborUtils.TIME_TO_REFRESH),
+                          new UnsignedInteger(TEST_TIME_TO_REFRESH_HOURS))
+                     .put(new UnicodeString(CborUtils.PROVISIONING_URL),
+                          new UnicodeString(TEST_URL))
+                     .put(new UnicodeString(CborUtils.LAST_BAD_CERT_TIME_START_MILLIS),
+                          new UnsignedInteger(BAD_CERT_START.toEpochMilli()))
+                     .put(new UnicodeString(CborUtils.LAST_BAD_CERT_TIME_END_MILLIS),
+                          new UnsignedInteger(BAD_CERT_END.toEpochMilli()));
     }
 
     @Presubmit
@@ -184,6 +201,34 @@ public class CborUtilsTest {
         assertEquals(TEST_URL, resp.provisioningUrl);
     }
 
+    @Presubmit
+    @Test
+    public void testParseGeekResponseFakeDataWithBadCertTimeRange() throws Exception {
+        new CborEncoder(mBaos).encode(new CborBuilder()
+                .addArray()
+                    .addArray()                                       // GEEK Curve to Chains
+                        .addArray()
+                            .add(new UnsignedInteger(CborUtils.EC_CURVE_25519))
+                            .add(mGeekChain1)
+                            .end()
+                        .addArray()
+                            .add(new UnsignedInteger(CborUtils.EC_CURVE_P256))
+                            .add(mGeekChain2)
+                            .end()
+                        .end()
+                    .add(CHALLENGE)
+                    .add(mDeviceConfigWithBadCertInfo)
+                    .end()
+                .build());
+        GeekResponse resp = CborUtils.parseGeekResponse(mBaos.toByteArray());
+        mBaos.reset();
+        assertEquals(TEST_EXTRA_KEYS, resp.numExtraAttestationKeys);
+        assertEquals(TEST_TIME_TO_REFRESH_HOURS, resp.timeToRefresh.toHours());
+        assertEquals(TEST_URL, resp.provisioningUrl);
+        assertEquals(BAD_CERT_START.toEpochMilli(), resp.lastBadCertTimeStart.toEpochMilli());
+        assertEquals(BAD_CERT_END.toEpochMilli(), resp.lastBadCertTimeEnd.toEpochMilli());
+    }
+
     @Test
     public void testExtraDeviceConfigEntriesDontFail() throws Exception {
         new CborEncoder(mBaos).encode(new CborBuilder()
@@ -238,6 +283,8 @@ public class CborUtilsTest {
         assertEquals(GeekResponse.NO_EXTRA_KEY_UPDATE, resp.numExtraAttestationKeys);
         assertNull(resp.timeToRefresh);
         assertNull(resp.provisioningUrl);
+        assertNull(resp.lastBadCertTimeStart);
+        assertNull(resp.lastBadCertTimeEnd);
     }
 
     @Test
@@ -266,6 +313,8 @@ public class CborUtilsTest {
         assertArrayEquals(CHALLENGE, resp.getChallenge());
         assertEquals(TEST_EXTRA_KEYS, resp.numExtraAttestationKeys);
         assertNull(resp.timeToRefresh);
+        assertNull(resp.lastBadCertTimeStart);
+        assertNull(resp.lastBadCertTimeEnd);
         assertEquals(TEST_URL, resp.provisioningUrl);
     }
 

@@ -19,8 +19,6 @@ package com.android.rkpdapp.e2etest;
 import static android.security.keystore.KeyProperties.KEY_ALGORITHM_EC;
 import static android.security.keystore.KeyProperties.PURPOSE_SIGN;
 
-import static com.android.rkpdapp.database.RkpdDatabase.DB_NAME;
-
 import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.TruthJUnit.assume;
 
@@ -30,7 +28,6 @@ import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.security.keystore.KeyGenParameterSpec;
 
-import androidx.room.Room;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.work.ListenableWorker;
 import androidx.work.testing.TestWorkerBuilder;
@@ -43,8 +40,6 @@ import com.android.rkpdapp.interfaces.ServiceManagerInterface;
 import com.android.rkpdapp.interfaces.SystemInterface;
 import com.android.rkpdapp.provisioner.PeriodicProvisioner;
 import com.android.rkpdapp.testutil.SystemInterfaceSelector;
-import com.android.rkpdapp.testutil.TestDatabase;
-import com.android.rkpdapp.testutil.TestProvisionedKeyDao;
 import com.android.rkpdapp.utils.Settings;
 import com.android.rkpdapp.utils.StatsProcessor;
 
@@ -70,8 +65,7 @@ public class RkpdHostTestHelperTests {
     private static Context sContext;
     private final String mInstanceName;
     private final String mServiceName;
-    private ProvisionedKeyDao mRealDao;
-    private TestProvisionedKeyDao mTestDao;
+    private ProvisionedKeyDao mKeyDao;
     private PeriodicProvisioner mProvisioner;
     private AutoCloseable mPeriodicProvisionerLock;
 
@@ -107,9 +101,8 @@ public class RkpdHostTestHelperTests {
 
         mPeriodicProvisionerLock = PeriodicProvisioner.lock();
         Settings.clearPreferences(sContext);
-        mRealDao = RkpdDatabase.getDatabase(sContext).provisionedKeyDao();
-        mRealDao.deleteAllKeys();
-        mTestDao = Room.databaseBuilder(sContext, TestDatabase.class, DB_NAME).build().dao();
+        mKeyDao = RkpdDatabase.getDatabase(sContext).provisionedKeyDao();
+        mKeyDao.deleteAllKeys();
 
         mProvisioner = TestWorkerBuilder.from(
                 sContext,
@@ -125,8 +118,8 @@ public class RkpdHostTestHelperTests {
     public void tearDown() throws Exception {
         Settings.clearPreferences(sContext);
 
-        if (mRealDao != null) {
-            mRealDao.deleteAllKeys();
+        if (mKeyDao != null) {
+            mKeyDao.deleteAllKeys();
         }
 
         KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
@@ -158,19 +151,19 @@ public class RkpdHostTestHelperTests {
     }
 
     @Test
-    public void provisionThenExpireThenProvisionAgain() throws Exception {
+    public void provisionThenExpireThenProvisionAgain() {
         assertThat(mProvisioner.doWork()).isEqualTo(ListenableWorker.Result.success());
 
-        List<ProvisionedKey> keys = mTestDao.getAllKeys();
+        List<ProvisionedKey> keys = mKeyDao.getAllKeys();
 
         // Expire a key
         keys.get(0).expirationTime = Instant.now().minusSeconds(60);
-        mRealDao.updateKey(keys.get(0));
+        mKeyDao.updateKey(keys.get(0));
 
         // Mark two more keys as expiring soon
         for (int i = 1; i < 3; ++i) {
             keys.get(i).expirationTime = Instant.now().plusSeconds(60);
-            mRealDao.updateKey(keys.get(i));
+            mKeyDao.updateKey(keys.get(i));
         }
 
         assertThat(mProvisioner.doWork()).isEqualTo(ListenableWorker.Result.success());
@@ -182,14 +175,14 @@ public class RkpdHostTestHelperTests {
         // key pool to ensure that the PeriodicProvisioner just noops.
         // This test is purely to test out proper metrics.
         assertThat(mProvisioner.doWork()).isEqualTo(ListenableWorker.Result.success());
-        StatsProcessor.PoolStats pool = StatsProcessor.processPool(mRealDao, mServiceName,
+        StatsProcessor.PoolStats pool = StatsProcessor.processPool(mKeyDao, mServiceName,
                 Settings.getExtraSignedKeysAvailable(sContext),
                 Settings.getExpirationTime(sContext));
 
         // The metrics host test will perform additional validation by ensuring correct metrics
         // are recorded.
         assertThat(mProvisioner.doWork()).isEqualTo(ListenableWorker.Result.success());
-        StatsProcessor.PoolStats updatedPool = StatsProcessor.processPool(mRealDao, mServiceName,
+        StatsProcessor.PoolStats updatedPool = StatsProcessor.processPool(mKeyDao, mServiceName,
                 Settings.getExtraSignedKeysAvailable(sContext),
                 Settings.getExpirationTime(sContext));
 
