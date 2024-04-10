@@ -140,6 +140,14 @@ public class ServerInterface {
             return TIMEOUT_MS;
         }
 
+        int timeout = SystemProperties.getInt("remote_provisioning.connect_timeout_millis", 0);
+
+        // Setting a zero connection timeout doesn't work as it indicates that there is no timeout.
+        // Hence, ignoring zero and negative values by default.
+        if (timeout > 0) {
+            return timeout;
+        }
+
         String regionProperty = getRegionalProperty();
         if (regionProperty == null || regionProperty.isEmpty()) {
             Log.i(TAG, "Could not get regions from system property.");
