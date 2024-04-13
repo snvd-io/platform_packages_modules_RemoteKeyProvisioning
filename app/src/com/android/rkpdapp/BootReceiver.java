@@ -58,8 +58,8 @@ public class BootReceiver extends BroadcastReceiver {
         WorkManager
                 .getInstance(context)
                 .enqueueUniquePeriodicWork(PeriodicProvisioner.UNIQUE_WORK_NAME,
-                                       ExistingPeriodicWorkPolicy.UPDATE, // Replace on reboot.
-                                       workRequest);
+                        ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE, // Replace on reboot.
+                        workRequest);
 
         Log.i(TAG, "Queueing a one-time provisioning job for widevine provisioning.");
         OneTimeWorkRequest wvRequest = new OneTimeWorkRequest.Builder(WidevineProvisioner.class)
