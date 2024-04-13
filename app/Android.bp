@@ -56,9 +56,13 @@ sdk {
     apexes: ["com.android.rkpd"],
 }
 
-java_defaults {
-    name: "rkpdapp_defaults",
+android_app {
+    name: "rkpdapp",
     sdk_version: "module_current",
+    target_sdk_version: "34",
+    min_sdk_version: "33",
+    updatable: false,
+    privileged: true,
     libs: [
         "framework-annotations-lib",
         "framework-connectivity",
@@ -84,26 +88,10 @@ java_defaults {
     plugins: [
         "androidx.room_room-compiler-plugin",
     ],
-}
-
-android_app {
-    name: "rkpdapp",
-    defaults: ["rkpdapp_defaults"],
-    target_sdk_version: "34",
-    min_sdk_version: "33",
-    updatable: false,
-    privileged: true,
     apex_available: [
         "com.android.rkpd",
     ],
     lint: {
         baseline_filename: "lint-baseline.xml",
     },
-}
-
-android_test_helper_app {
-    name: "avf-rkpdapp",
-    defaults: ["rkpdapp_defaults"],
-    additional_manifests: ["AndroidManifest.avf.xml"],
-    visibility: ["//packages/modules/Virtualization:__subpackages__"],
 }
