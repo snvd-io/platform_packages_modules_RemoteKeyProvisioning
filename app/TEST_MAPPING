@@ -17,6 +17,10 @@
   ],
   "avf-postsubmit": [
     {
+      "name": "AvfRkpdAppGoogleIntegrationTests",
+      "keywords": ["internal"]
+    },
+    {
       // TODO(b/325610326): Add this target to presubmit once there is enough
       // SLO data for it.
       "name": "AvfRkpdAppIntegrationTests"
