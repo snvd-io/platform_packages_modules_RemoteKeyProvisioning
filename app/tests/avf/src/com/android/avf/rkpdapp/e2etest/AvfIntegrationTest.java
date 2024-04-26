@@ -24,7 +24,6 @@ import android.hardware.security.keymint.IRemotelyProvisionedComponent;
 import android.os.Process;
 import android.os.SystemProperties;
 
-import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.work.ListenableWorker;
 import androidx.work.testing.TestWorkerBuilder;
 
@@ -43,8 +42,11 @@ import com.android.rkpdapp.utils.X509Utils;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.Timeout;
 import org.junit.runner.RunWith;
+import org.junit.runners.BlockJUnit4ClassRunner;
 
 import java.security.cert.X509Certificate;
 import java.time.Instant;
@@ -60,13 +62,15 @@ import java.util.concurrent.Executors;
  * - Have the RKP server hostname configured in the device. If not, you can set it using:
  * $ adb shell setprop remote_provisioning.hostname remoteprovisioning.googleapis.com
  */
-@RunWith(AndroidJUnit4.class)
+@RunWith(BlockJUnit4ClassRunner.class)
 public class AvfIntegrationTest extends MicrodroidDeviceTestBase {
     private static final String SERVICE_NAME = IRemotelyProvisionedComponent.DESCRIPTOR + "/avf";
 
     private ProvisionedKeyDao mKeyDao;
     private PeriodicProvisioner mProvisioner;
     private AutoCloseable mPeriodicProvisionerLock;
+
+    @Rule public final Timeout mTimeout = Timeout.seconds(30);
 
     @Before
     public void setUp() throws Exception {
