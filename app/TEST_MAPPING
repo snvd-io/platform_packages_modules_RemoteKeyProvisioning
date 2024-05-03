@@ -19,7 +19,9 @@
     {
       "name": "AvfRkpdAppGoogleIntegrationTests",
       "keywords": ["internal"]
-    },
+    }
+  ],
+  "avf-presubmit": [
     {
       // TODO(b/325610326): Add this target to presubmit once there is enough
       // SLO data for it.
