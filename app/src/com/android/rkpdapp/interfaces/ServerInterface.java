@@ -437,6 +437,9 @@ public class ServerInterface {
                         throw e;
                     } else {
                         metrics.setStatus(operation.getHttpErrorStatus());
+                        if (e.getErrorCode() == RkpdException.ErrorCode.HTTP_CLIENT_ERROR) {
+                            throw e;
+                        }
                     }
                 }
                 // Only RkpdExceptions should get retries.
