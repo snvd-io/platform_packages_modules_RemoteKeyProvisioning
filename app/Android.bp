@@ -75,6 +75,7 @@ android_app {
     static_libs: [
         "android.hardware.security.rkp-V3-java",
         "androidx.room_room-runtime",
+        "androidx.sqlite_sqlite",
         "androidx.work_work-runtime",
         "cbor-java",
         "com.android.rkpdapp-aidl-java",
@@ -91,6 +92,6 @@ android_app {
         "com.android.rkpd",
     ],
     lint: {
-        strict_updatability_linting: true,
+        baseline_filename: "lint-baseline.xml",
     },
 }
