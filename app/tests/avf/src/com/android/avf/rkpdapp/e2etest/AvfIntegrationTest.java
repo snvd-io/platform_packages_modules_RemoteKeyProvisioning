@@ -84,11 +84,11 @@ public class AvfIntegrationTest extends MicrodroidDeviceTestBase {
                 .that(ServerInterface.isNetworkConnected(getContext()))
                 .isTrue();
 
+        mPeriodicProvisionerLock = PeriodicProvisioner.lock();
         Settings.clearPreferences(getContext());
         mKeyDao = RkpdDatabase.getDatabase(getContext()).provisionedKeyDao();
         mKeyDao.deleteAllKeys();
 
-        mPeriodicProvisionerLock = PeriodicProvisioner.lock();
         mProvisioner =
                 TestWorkerBuilder.from(
                                 getContext(),
