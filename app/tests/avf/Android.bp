@@ -21,7 +21,6 @@ android_test {
     test_suites: [
         "general-tests",
         "device-tests",
-        "mcts-rkpd",
         "mts-rkpd",
     ],
     min_sdk_version: "33",
