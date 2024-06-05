@@ -19,7 +19,9 @@ package com.android.rkpdapp.service;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Binder;
 import android.os.IBinder;
+import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
 
@@ -62,6 +64,14 @@ public class RemoteProvisioningService extends Service {
                 if (Settings.getDefaultUrl().isEmpty() || Settings.getUrl(context).isEmpty()) {
                     callback.onError("RKP is disabled. System configured with no default URL.");
                     metric.setResult(RkpdClientOperation.Result.RKP_UNSUPPORTED);
+                    return;
+                }
+
+                // Check that only system process and self calls binding.
+                if (Binder.getCallingUid() != Process.SYSTEM_UID
+                        && Binder.getCallingUid() != Process.myUid()) {
+                    callback.onError(
+                            "Only system server and self are allowed to call RKP service.");
                     return;
                 }
 
