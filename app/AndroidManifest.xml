@@ -30,6 +30,7 @@
             android:exported="false">
         </service>
         <service android:name=".service.RemoteProvisioningService"
+            android:permission="android.permission.BIND_RKP_SERVICE"
             android:exported="true">
             <intent-filter>
                 <action android:name="com.android.rkpdapp.IRemoteProvisioning"/>
