@@ -354,7 +354,7 @@ public class KeystoreIntegrationTest {
             try {
                 Thread.sleep(60 * 1000);
             } catch (InterruptedException e) {
-                assertWithMessage("sleep failed", e).fail();
+                assertWithMessage("sleep failed: %s", e).fail();
             }
             return null;
         };
