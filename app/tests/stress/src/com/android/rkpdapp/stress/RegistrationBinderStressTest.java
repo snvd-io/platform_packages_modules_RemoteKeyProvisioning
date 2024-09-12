@@ -67,6 +67,8 @@ public class RegistrationBinderStressTest {
 
     @Before
     public void setUp() throws Exception {
+        mContext = ApplicationProvider.getApplicationContext();
+
         assume()
                 .withMessage("The RKP server hostname is not configured -- assume RKP disabled.")
                 .that(SystemProperties.get("remote_provisioning.hostname"))
@@ -75,7 +77,11 @@ public class RegistrationBinderStressTest {
                 .withMessage("Remotely Provisioned Component is not found -- RKP disabled.")
                 .that(ServiceManager.isDeclared(SERVICE))
                 .isTrue();
-        mContext = ApplicationProvider.getApplicationContext();
+        assume()
+                .withMessage("RKP Stress tests rely on network availability.")
+                .that(ServerInterface.isNetworkConnected(mContext))
+                .isTrue();
+
         mIrpcHal = ServiceManagerInterface.getInstance(SERVICE);
         mKeyDao = RkpdDatabase.getDatabase(mContext).provisionedKeyDao();
         mKeyDao.deleteAllKeys();
